@@ -247,7 +247,7 @@
             document.getElementById('wordInput').disabled = false;
             document.getElementById('toggleTransBtn').disabled = false;
             document.getElementById('shuffleBtn').disabled = false;
-            document.getElementById('wordInput').placeholder = '输入单词按回车验证，双击回车跳过';
+            document.getElementById('wordInput').placeholder = '空格确认拼写，Enter切换下一个';
         }
 
         function disableAllControls() {
@@ -337,25 +337,15 @@
             const toggleTransBtn = document.getElementById('toggleTransBtn');
             const shuffleBtn = document.getElementById('shuffleBtn');
 
-            // 回车事件（单击验证，双击跳过）
+            // 按键事件：空格确认拼写，Enter切换下一个单词
             inputEl.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === ' ' || e.code === 'Space') {
                     e.preventDefault();
-                    enterClickCount++;
-
-                    if (enterClickCount === 2) {
-                        clearTimeout(enterTimeout);
-                        setTimeout(goToNextWord, 150);
-                        enterClickCount = 0;
-                    }
-
-                    if (enterClickCount === 1) {
-                        enterTimeout = setTimeout(() => {
-                            const inputValue = inputEl.value.trim();
-                            if (inputValue) validateInput();
-                            enterClickCount = 0;
-                        }, 250);
-                    }
+                    const inputValue = inputEl.value.trim();
+                    if (inputValue) validateInput();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    goToNextWord();
                 }
             });
 
