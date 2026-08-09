@@ -247,7 +247,7 @@
             document.getElementById('wordInput').disabled = false;
             document.getElementById('toggleTransBtn').disabled = false;
             document.getElementById('shuffleBtn').disabled = false;
-            document.getElementById('wordInput').placeholder = '空格确认拼写，Enter切换下一个';
+            document.getElementById('wordInput').placeholder = '空格确认，Enter/下方向键下一个，上方向键上一个';
         }
 
         function disableAllControls() {
@@ -326,6 +326,13 @@
             updateProgress();
         }
 
+        function goToPrevWord() {
+            const oldIdx = currentIndex;
+            currentIndex = currentIndex > 0 ? currentIndex - 1 : shuffledWords.length - 1;
+            activateCurrentWord(oldIdx);
+            updateProgress();
+        }
+
         // 查找滚动窗口顶部对应的单词索引（O(log n)）
         function findCenteredWordIndex() {
             return findIndexAtPosition(leftScrollArea.scrollTop);
@@ -337,15 +344,18 @@
             const toggleTransBtn = document.getElementById('toggleTransBtn');
             const shuffleBtn = document.getElementById('shuffleBtn');
 
-            // 按键事件：空格确认拼写，Enter切换下一个单词
+            // 按键事件：空格确认拼写，Enter/下方向键切换下一个单词，上方向键切换上一个单词
             inputEl.addEventListener('keydown', (e) => {
                 if (e.key === ' ' || e.code === 'Space') {
                     e.preventDefault();
                     const inputValue = inputEl.value.trim();
                     if (inputValue) validateInput();
-                } else if (e.key === 'Enter') {
+                } else if (e.key === 'Enter' || e.key === 'ArrowDown') {
                     e.preventDefault();
                     goToNextWord();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    goToPrevWord();
                 }
             });
 
