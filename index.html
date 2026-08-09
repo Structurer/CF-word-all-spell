@@ -79,7 +79,7 @@
                 initVirtualScroll();
                 bindEvents();
                 enableAllControls();
-                activateCurrentWord();
+                activateCurrentWord(-1, false);
             })
             .catch(() => {
                 document.getElementById('wordList').innerHTML = `
@@ -277,30 +277,37 @@
             }
         }
 
-        // 平滑滚动到指定位置（用于切换单词和吸顶对齐）
-        function smoothScrollTo(top) {
-            isSmoothScrolling = true;
+        // 滚动到指定位置（instant=true 瞬间定位用于初始化/长距离，否则平滑滚动）
+        function smoothScrollTo(top, instant = false) {
+            isSmoothScrolling = !instant;
             isAutoScroll = true;
-            leftScrollArea.scrollTo({ top, behavior: 'smooth' });
+
+            if (instant) {
+                leftScrollArea.scrollTop = top;
+            } else {
+                leftScrollArea.scrollTo({ top, behavior: 'smooth' });
+            }
+
             clearTimeout(autoScrollEndTimeout);
+            // instant 模式给 200ms 让 measureAndCorrect 稳定 cardTops；平滑模式 400ms
             autoScrollEndTimeout = setTimeout(() => {
                 isSmoothScrolling = false;
                 isAutoScroll = false;
-                // 平滑滚动结束后精准对齐一次（应对高度修正导致的偏差）
+                // 结束后精准对齐一次（应对高度修正导致的偏差）
                 const finalTop = cardTops[currentIndex] || 0;
                 if (Math.abs(leftScrollArea.scrollTop - finalTop) > 1) {
                     leftScrollArea.scrollTop = finalTop;
                 }
-            }, 400);
+            }, instant ? 200 : 400);
         }
 
-        // 激活当前单词：平滑滚动到顶部 + 渲染 + 标记 active
-        function activateCurrentWord(oldIdx = -1) {
+        // 激活当前单词：滚动到顶部 + 渲染 + 标记 active（useSmooth=false 用于初始化瞬间定位）
+        function activateCurrentWord(oldIdx = -1, useSmooth = true) {
             if (!domReady) return;
 
-            // 选中单词平滑滚动到窗口最上侧
+            // 选中单词滚动到窗口最上侧
             const top = cardTops[currentIndex] || 0;
-            smoothScrollTo(top);
+            smoothScrollTo(top, !useSmooth);
 
             lastRenderStart = -1;
             lastRenderEnd = -1;
