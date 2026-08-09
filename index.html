@@ -44,6 +44,8 @@
         let enterTimeout = null;
         let rafId = null;
         let globalHideTranslations = false;
+        let autoScrollEndTimeout = null;
+        let isSmoothScrolling = false;
 
         // ============ 虚拟滚动配置与状态 ============
         const ESTIMATED_CARD_HEIGHT = 160; // 预估单卡高度（不含间距）
@@ -232,7 +234,8 @@
                     cards[i].style.transform = `translateY(${cardTops[idx]}px)`;
                 }
                 // 自动滚动期间，高度修正后重新对齐 scrollTop，保持当前单词在顶部
-                if (isAutoScroll) {
+                // 注意：平滑滚动期间不强制设置，避免破坏动画；动画结束后由 smoothScrollTo 统一精准对齐
+                if (isAutoScroll && !isSmoothScrolling) {
                     leftScrollArea.scrollTop = cardTops[currentIndex] || 0;
                 }
             }
@@ -265,14 +268,30 @@
             }
         }
 
-        // 激活当前单词：滚动到顶部 + 渲染 + 标记 active
+        // 平滑滚动到指定位置（用于切换单词和吸顶对齐）
+        function smoothScrollTo(top) {
+            isSmoothScrolling = true;
+            isAutoScroll = true;
+            leftScrollArea.scrollTo({ top, behavior: 'smooth' });
+            clearTimeout(autoScrollEndTimeout);
+            autoScrollEndTimeout = setTimeout(() => {
+                isSmoothScrolling = false;
+                isAutoScroll = false;
+                // 平滑滚动结束后精准对齐一次（应对高度修正导致的偏差）
+                const finalTop = cardTops[currentIndex] || 0;
+                if (Math.abs(leftScrollArea.scrollTop - finalTop) > 1) {
+                    leftScrollArea.scrollTop = finalTop;
+                }
+            }, 400);
+        }
+
+        // 激活当前单词：平滑滚动到顶部 + 渲染 + 标记 active
         function activateCurrentWord(oldIdx = -1) {
             if (!domReady) return;
-            isAutoScroll = true;
 
-            // 选中单词始终展示在滚动窗口最上侧
+            // 选中单词平滑滚动到窗口最上侧
             const top = cardTops[currentIndex] || 0;
-            leftScrollArea.scrollTop = top;
+            smoothScrollTo(top);
 
             lastRenderStart = -1;
             lastRenderEnd = -1;
@@ -281,8 +300,6 @@
 
             document.getElementById('wordInput').value = '';
             enterClickCount = 0;
-
-            setTimeout(() => { isAutoScroll = false; }, 100);
         }
 
         function updateProgress() {
@@ -351,9 +368,8 @@
                 });
             });
 
-            // 打乱单词（重置虚拟滚动状态）
+            // 打乱单词（重置虚拟滚动状态，瞬间回到顶部避免长距离平滑滚动过慢）
             shuffleBtn.addEventListener('click', () => {
-                isAutoScroll = true;
                 shuffledWords = [...words].sort(() => Math.random() - 0.5);
                 currentIndex = 0;
                 cardHeights = shuffledWords.map(() => ESTIMATED_CARD_HEIGHT);
@@ -362,12 +378,24 @@
                 computeTops();
                 disableAllControls();
 
-                activateCurrentWord();
+                // 瞬间回到顶部
+                isSmoothScrolling = false;
+                isAutoScroll = true;
+                leftScrollArea.scrollTop = 0;
+                lastRenderStart = -1;
+                lastRenderEnd = -1;
+                renderVisibleCards();
+                updateActiveClass(-1, 0);
+                document.getElementById('wordInput').value = '';
+                enterClickCount = 0;
+                clearTimeout(autoScrollEndTimeout);
+                autoScrollEndTimeout = setTimeout(() => { isAutoScroll = false; }, 100);
+
                 updateProgress();
                 enableAllControls();
             });
 
-            // 滚动事件：rAF 实时渲染可视卡片 + 防抖更新顶部单词索引
+            // 滚动事件：rAF 实时渲染可视卡片 + 防抖更新顶部单词索引 + 停止后吸顶对齐
             leftScrollArea.addEventListener('scroll', () => {
                 if (rafId) cancelAnimationFrame(rafId);
                 rafId = requestAnimationFrame(renderVisibleCards);
@@ -384,7 +412,12 @@
                         document.getElementById('wordInput').value = '';
                         enterClickCount = 0;
                     }
-                }, 150);
+                    // 吸顶：滚动停止后，把当前单词平滑对齐到窗口最上位置
+                    const targetTop = cardTops[currentIndex] || 0;
+                    if (Math.abs(leftScrollArea.scrollTop - targetTop) > 2) {
+                        smoothScrollTo(targetTop);
+                    }
+                }, 200);
             });
         }
     </script>
