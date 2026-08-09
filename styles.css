@@ -182,13 +182,24 @@ h1 {
 .new-word-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: baseline;
+    gap: 6px;
     margin-bottom: 6px;
+}
+.new-word-left {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
 }
 .new-word {
     font-size: 16px;
     font-weight: 600;
     color: #2d3748;
+}
+.new-word-phonetic {
+    font-size: 11px;
+    color: #718096;
 }
 .new-word-delete {
     background: #fee2e2;
@@ -217,15 +228,15 @@ h1 {
     align-items: center;
     gap: 6px;
     line-height: 1.4;
+    cursor: pointer;
 }
 .new-word-pos-tag {
-    padding: 1px 6px;
+    padding: 1px 5px;
     background: #fef3c7;
     color: #d69e2e;
-    border-radius: 10px;
+    border-radius: 6px;
     font-size: 11px;
     white-space: nowrap;
-    flex-shrink: 0;
 }
 .new-word-translation-item .meaning {
     transition: background 0.2s;
@@ -269,11 +280,19 @@ h1 {
 }
 .word-header {
     margin-bottom: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 .word {
     font-size: 22px;
     font-weight: bold;
     color: #2d3748;
+}
+.phonetic {
+    font-size: 12px;
+    color: #718096;
 }
 .translations-container {
     margin-bottom: 15px;
@@ -302,11 +321,11 @@ h1 {
     background: #cbd5e0;
 }
 .pos-tag {
-    padding: 2px 8px;
+    padding: 2px 6px;
     background: #e8f4f8;
     color: #4299e1;
-    border-radius: 12px;
-    font-size: 13px;
+    border-radius: 8px;
+    font-size: 12px;
     white-space: nowrap;
 }
 .phrases-title {

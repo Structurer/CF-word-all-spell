@@ -210,8 +210,8 @@
                 meanings.forEach(mean => {
                     translationsHtml += `
                         <div class="translation-item">
-                            <span class="meaning">${mean.trim()}</span>
                             <span class="pos-tag">${trans.type}</span>
+                            <span class="meaning">${mean.trim()}</span>
                         </div>
                     `;
                 });
@@ -233,9 +233,13 @@
                 `;
             }
 
+            // 音标：有则显示在单词右侧，无则不显示
+            const phoneticHtml = wordObj.phonetic ? `<span class="phonetic">/${wordObj.phonetic}/</span>` : '';
+
             card.innerHTML = `
                 <div class="word-header">
-                    <div class="word">${wordObj.word}</div>
+                    <span class="word">${wordObj.word}</span>
+                    ${phoneticHtml}
                 </div>
                 ${translationsHtml}
                 ${phrasesHtml}
@@ -381,16 +385,22 @@
                 meanings.forEach(mean => {
                     translationsHtml += `
                         <div class="new-word-translation-item">
-                            <span class="meaning">${mean.trim()}</span>
                             <span class="new-word-pos-tag">${trans.type}</span>
+                            <span class="meaning">${mean.trim()}</span>
                         </div>
                     `;
                 });
             });
 
+            // 音标：有则显示在单词右侧，无则不显示
+            const phoneticHtml = wordObj.phonetic ? `<span class="new-word-phonetic">/${wordObj.phonetic}/</span>` : '';
+
             card.innerHTML = `
                 <div class="new-word-row">
-                    <div class="new-word">${wordObj.word}</div>
+                    <div class="new-word-left">
+                        <span class="new-word">${wordObj.word}</span>
+                        ${phoneticHtml}
+                    </div>
                     <button class="new-word-delete" title="删除该生词" aria-label="删除该生词">🗑</button>
                 </div>
                 ${translationsHtml}
