@@ -14,14 +14,14 @@
             <div class="top-section">
                 <div class="top-bar">
                     <h1>背单词助手</h1>
+                    <span class="progress" id="progress">进度：0/0</span>
+                </div>
+                <div class="input-row">
+                    <input type="text" class="word-input" id="wordInput" placeholder="加载完成后可输入" disabled>
                     <div class="top-actions">
                         <button class="btn" id="toggleTransBtn" disabled>隐藏释义</button>
                         <button class="btn reset" id="shuffleBtn" disabled>随机打乱</button>
                     </div>
-                </div>
-                <div class="input-row">
-                    <input type="text" class="word-input" id="wordInput" placeholder="加载完成后可输入" disabled>
-                    <span class="progress" id="progress">进度：0/0</span>
                 </div>
             </div>
             <!-- 下部：主词库卡片滚动区（独立滚动） -->
@@ -557,6 +557,8 @@
 
             document.getElementById('wordInput').value = '';
             enterClickCount = 0;
+            // 确保切换单词后焦点回到输入框
+            document.getElementById('wordInput').focus();
         }
 
         function updateProgress() {
