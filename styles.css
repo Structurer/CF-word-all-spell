@@ -147,13 +147,18 @@ h1 {
     align-items: center;
     gap: 8px;
 }
-.translation-item.hidden {
+.translation-item .meaning {
+    transition: background 0.2s, color 0.2s;
+}
+.translation-item.hidden .meaning {
     background: #e2e8f0;
     color: transparent;
     user-select: none;
     border-radius: 4px;
+    padding: 2px 6px;
+    margin: -2px -6px;
 }
-.translation-item.hidden:hover {
+.translation-item.hidden:hover .meaning {
     background: #cbd5e0;
 }
 .pos-tag {
