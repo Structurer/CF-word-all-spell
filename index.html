@@ -47,6 +47,7 @@
         let autoScrollEndTimeout = null;
         let isSmoothScrolling = false;
         let isShuffleMode = false; // true=乱序模式，false=顺序模式
+        let newWordsBook = []; // 生词本：存储被加入生词的单词对象列表
 
         // ============ 虚拟滚动配置与状态 ============
         const ESTIMATED_CARD_HEIGHT = 160; // 预估单卡高度（不含间距）
@@ -67,6 +68,12 @@
             })
             .then(data => {
                 words = data;
+
+                // 读取生词本缓存
+                try {
+                    const cachedBook = JSON.parse(localStorage.getItem('newWordsBook') || '[]');
+                    if (Array.isArray(cachedBook)) newWordsBook = cachedBook;
+                } catch (e) { newWordsBook = []; }
 
                 // 读取缓存的模式和当前序号
                 const cachedMode = localStorage.getItem('displayMode');
@@ -369,6 +376,18 @@
             updateProgress();
         }
 
+        // 加入生词本（基于单词内容去重，避免重复添加）
+        function addToNewWordsBook() {
+            const currentWordObj = shuffledWords[currentIndex];
+            if (!currentWordObj) return;
+            // 用 word 字段去重
+            const exists = newWordsBook.some(w => w.word === currentWordObj.word);
+            if (!exists) {
+                newWordsBook.push({ ...currentWordObj });
+                localStorage.setItem('newWordsBook', JSON.stringify(newWordsBook));
+            }
+        }
+
         // 查找滚动窗口顶部对应的单词索引（O(log n)）
         function findCenteredWordIndex() {
             return findIndexAtPosition(leftScrollArea.scrollTop);
@@ -396,8 +415,16 @@
                 // Enter / 下方向键：切换下一个单词
                 if (e.key === 'Enter' || e.key === 'ArrowDown') {
                     e.preventDefault();
-                    // 未聚焦时先聚焦输入框，再切换
                     if (!isInputFocused) inputEl.focus();
+                    goToNextWord();
+                    return;
+                }
+
+                // 右方向键：把当前单词加入生词本，并切换下一个单词
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    if (!isInputFocused) inputEl.focus();
+                    addToNewWordsBook();
                     goToNextWord();
                     return;
                 }
