@@ -13,55 +13,40 @@ body {
 }
 .main-container {
     display: flex;
-    flex-direction: row-reverse;
-    gap: 25px;
+    flex-direction: column;
+    gap: 20px;
     max-width: 1200px;
     width: 100%;
-}
-.left-section {
-    flex: 9;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
-    padding: 30px;
-    overflow-y: auto;
-    max-height: calc(100vh - 40px);
-}
-.right-section {
-    flex: 4;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
-    padding: 30px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    position: sticky;
-    top: 20px;
     height: calc(100vh - 40px);
 }
-h1 {
-    text-align: center;
-    color: #2d3748;
-    margin-bottom: 30px;
-    font-size: 28px;
+.top-section {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+    padding: 18px 24px;
+    flex-shrink: 0;
 }
-.control-bar {
+.top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
-    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+h1 {
+    color: #2d3748;
+    font-size: 22px;
+}
+.top-actions {
+    display: flex;
     gap: 10px;
 }
 .btn {
-    padding: 10px 20px;
+    padding: 8px 16px;
     border: none;
     border-radius: 6px;
     background: #4299e1;
     color: white;
-    font-size: 16px;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.3s;
 }
@@ -78,13 +63,40 @@ h1 {
 .btn.reset:hover {
     background: #dd6b20;
 }
-.word-count {
+.input-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.word-input {
+    flex: 1;
+    padding: 12px;
+    font-size: 18px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+.word-input:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+.progress {
+    flex: 0 0 auto;
     color: #718096;
     font-size: 15px;
+    white-space: nowrap;
 }
 .word-list {
     position: relative;
     width: 100%;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 .virtual-spacer {
     width: 100%;
@@ -116,9 +128,6 @@ h1 {
     box-shadow: 0 4px 15px rgba(72, 187, 120, 0.15);
 }
 .word-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-bottom: 12px;
 }
 .word {
@@ -179,68 +188,26 @@ h1 {
     color: #718096;
     margin-left: 6px;
 }
-.input-container {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    text-align: center;
-}
-.input-title {
-    font-size: 22px;
-    color: #2d3748;
-    font-weight: 600;
-}
-.word-input {
-    width: 100%;
-    padding: 15px;
-    font-size: 18px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    outline: none;
-    transition: border-color 0.3s;
-}
-.word-input:focus {
-    border-color: #4299e1;
-    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
-}
-.feedback {
-    font-size: 18px;
-    font-weight: 500;
-    min-height: 24px;
-}
-.feedback.correct {
-    color: #48bb78;
-}
-.feedback.error {
-    color: #e53e3e;
-}
-.progress {
-    color: #718096;
-    font-size: 16px;
-}
 @media (max-width: 900px) {
     .main-container {
-        flex-direction: column;
-    }
-    .right-section {
         height: auto;
-        position: static;
-        margin-top: 20px;
+        min-height: 100vh;
     }
-    .left-section, .right-section {
-        max-height: none;
+    .word-list {
+        max-height: 70vh;
+        flex: none;
     }
 }
 @media (max-width: 600px) {
-    .left-section, .right-section {
-        padding: 20px 15px;
+    .top-section, .word-list {
+        padding: 16px;
+    }
+    .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
     }
     .word {
         font-size: 20px;
-    }
-    .control-bar {
-        flex-direction: column;
-        align-items: flex-start;
     }
 }

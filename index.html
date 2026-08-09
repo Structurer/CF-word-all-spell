@@ -3,39 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>单词背诵助手（拼写验证版）</title>
+    <title>背单词助手</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="main-container">
-        <!-- 左侧单词列表区 -->
-        <div class="left-section" id="leftScrollArea">
-            <h1>📚 单词背诵助手</h1>
-
-            <div class="control-bar">
-                <button class="btn" id="hideBtn" disabled>隐藏所有释义</button>
-                <button class="btn" id="showBtn" disabled>显示所有释义</button>
-                <button class="btn reset" id="shuffleBtn" disabled>随机打乱顺序</button>
-                <span class="word-count" id="count">共 <span>0</span> 个单词</span>
-            </div>
-
-            <!-- 虚拟滚动容器（加载后由 JS 注入 spacer + content） -->
-            <div class="word-list" id="wordList">
-                <div style="text-align: center; padding: 80px 20px; color: #4299e1; font-size: 20px; line-height: 2;">
-                    ⏳ 正在加载单词数据...<br>
-                    请稍候，加载完成后自动显示卡片
+        <!-- 顶部：标题 + 操作按钮 + 输入框 -->
+        <div class="top-section">
+            <div class="top-bar">
+                <h1>背单词助手</h1>
+                <div class="top-actions">
+                    <button class="btn" id="toggleTransBtn" disabled>隐藏释义</button>
+                    <button class="btn reset" id="shuffleBtn" disabled>随机打乱</button>
                 </div>
+            </div>
+            <div class="input-row">
+                <input type="text" class="word-input" id="wordInput" placeholder="加载完成后可输入" disabled>
+                <span class="progress" id="progress">进度：0/0</span>
             </div>
         </div>
 
-        <!-- 右侧输入区 -->
-        <div class="right-section">
-            <div class="input-container">
-                <div class="input-title">✍️ 拼写单词</div>
-                <input type="text" class="word-input" id="wordInput" placeholder="加载完成后可输入" disabled>
-                <div class="feedback" id="feedback">📌 等待数据加载中...</div>
-                <div class="progress" id="progress">进度：0/0</div>
-                <button class="btn" id="nextBtn" disabled>下一个单词</button>
+        <!-- 卡片滚动区（独立滚动） -->
+        <div class="word-list" id="wordList">
+            <div style="text-align: center; padding: 80px 20px; color: #4299e1; font-size: 20px; line-height: 2;">
+                ⏳ 正在加载单词数据...<br>
+                请稍候，加载完成后自动显示卡片
             </div>
         </div>
     </div>
@@ -45,7 +37,7 @@
         let words = [];
         let currentIndex = 0;
         let shuffledWords = [];
-        const leftScrollArea = document.getElementById('leftScrollArea');
+        const leftScrollArea = document.getElementById('wordList');
         let isAutoScroll = false;
         let scrollTimeout = null;
         let enterClickCount = 0;
@@ -73,7 +65,6 @@
             .then(data => {
                 words = data;
                 shuffledWords = [...words];
-                document.querySelector('#count span').textContent = words.length;
                 document.getElementById('progress').textContent = `进度：1/${words.length}`;
 
                 initVirtualScroll();
@@ -90,9 +81,6 @@
                         2. 是否通过 HTTP 协议打开页面（本地 file:// 协议不支持跨文件读取）<br>
                     </div>
                 `;
-                document.getElementById('feedback').textContent = '❌ 加载失败，请检查上述条件';
-                document.getElementById('feedback').className = 'feedback error';
-                document.getElementById('progress').textContent = '加载失败';
             });
 
         // ============ 虚拟滚动核心 ============
@@ -243,6 +231,10 @@
                     const idx = parseInt(cards[i].dataset.index, 10);
                     cards[i].style.transform = `translateY(${cardTops[idx]}px)`;
                 }
+                // 自动滚动期间，高度修正后重新对齐 scrollTop，保持当前单词在顶部
+                if (isAutoScroll) {
+                    leftScrollArea.scrollTop = cardTops[currentIndex] || 0;
+                }
             }
         }
 
@@ -250,18 +242,13 @@
 
         function enableAllControls() {
             document.getElementById('wordInput').disabled = false;
-            document.getElementById('nextBtn').disabled = false;
-            document.getElementById('hideBtn').disabled = false;
-            document.getElementById('showBtn').disabled = false;
+            document.getElementById('toggleTransBtn').disabled = false;
             document.getElementById('shuffleBtn').disabled = false;
             document.getElementById('wordInput').placeholder = '输入单词按回车验证，双击回车跳过';
-            document.getElementById('feedback').textContent = '';
         }
 
         function disableAllControls() {
             document.getElementById('wordInput').disabled = true;
-            document.getElementById('nextBtn').disabled = true;
-            document.getElementById('feedback').textContent = '📌 正在打乱...';
         }
 
         // 更新 active class（只操作两个 DOM 节点，不遍历全部）
@@ -278,24 +265,21 @@
             }
         }
 
-        // 激活当前单词：瞬间定位 + 渲染 + 标记 active
+        // 激活当前单词：滚动到顶部 + 渲染 + 标记 active
         function activateCurrentWord(oldIdx = -1) {
             if (!domReady) return;
             isAutoScroll = true;
 
+            // 选中单词始终展示在滚动窗口最上侧
             const top = cardTops[currentIndex] || 0;
-            const cardH = cardHeights[currentIndex] || ESTIMATED_CARD_HEIGHT;
-            const viewport = leftScrollArea.clientHeight;
-            const target = Math.max(0, top - (viewport - cardH) / 2);
+            leftScrollArea.scrollTop = top;
 
-            leftScrollArea.scrollTop = target;
             lastRenderStart = -1;
             lastRenderEnd = -1;
             renderVisibleCards();
             updateActiveClass(oldIdx, currentIndex);
 
             document.getElementById('wordInput').value = '';
-            document.getElementById('feedback').textContent = '';
             enterClickCount = 0;
 
             setTimeout(() => { isAutoScroll = false; }, 100);
@@ -305,64 +289,35 @@
             document.getElementById('progress').textContent = `进度：${currentIndex + 1}/${shuffledWords.length}`;
         }
 
-        // 验证输入（已删除 750ms 延迟，拼写正确立即跳转）
+        // 验证输入（拼写正确立即跳转，错误选中重输）
         function validateInput() {
             const inputEl = document.getElementById('wordInput');
-            const feedbackEl = document.getElementById('feedback');
             const inputValue = inputEl.value.trim().toLowerCase();
             const currentWord = shuffledWords[currentIndex].word.toLowerCase();
 
             if (inputValue === currentWord) {
-                feedbackEl.textContent = '✅ 拼写正确！';
-                feedbackEl.className = 'feedback correct';
                 goToNextWord();
             } else {
-                feedbackEl.textContent = '❌ 拼写错误，再试试！';
-                feedbackEl.className = 'feedback error';
                 inputEl.select();
             }
         }
 
         function goToNextWord() {
             const oldIdx = currentIndex;
-            if (currentIndex < shuffledWords.length - 1) {
-                currentIndex++;
-                activateCurrentWord(oldIdx);
-                updateProgress();
-            } else {
-                document.getElementById('feedback').textContent = '🎉 所有单词背诵完成！';
-                document.getElementById('feedback').className = 'feedback correct';
-                setTimeout(() => {
-                    currentIndex = 0;
-                    activateCurrentWord(oldIdx);
-                    updateProgress();
-                }, 800);
-            }
+            currentIndex = currentIndex < shuffledWords.length - 1 ? currentIndex + 1 : 0;
+            activateCurrentWord(oldIdx);
+            updateProgress();
         }
 
-        // 用计算找居中索引（O(log n)，不再遍历 DOM）
+        // 查找滚动窗口顶部对应的单词索引（O(log n)）
         function findCenteredWordIndex() {
-            const scrollTop = leftScrollArea.scrollTop;
-            const viewportCenter = scrollTop + leftScrollArea.clientHeight / 2;
-            let lo = 0, hi = cardTops.length - 1;
-            while (lo < hi) {
-                const mid = (lo + hi) >> 1;
-                if (cardTops[mid] < viewportCenter) lo = mid + 1;
-                else hi = mid;
-            }
-            const c1 = Math.max(0, lo - 1);
-            const c2 = Math.min(cardTops.length - 1, lo);
-            const center1 = cardTops[c1] + cardHeights[c1] / 2;
-            const center2 = cardTops[c2] + cardHeights[c2] / 2;
-            return Math.abs(center1 - viewportCenter) <= Math.abs(center2 - viewportCenter) ? c1 : c2;
+            return findIndexAtPosition(leftScrollArea.scrollTop);
         }
 
         // ============ 事件绑定 ============
         function bindEvents() {
             const inputEl = document.getElementById('wordInput');
-            const nextBtn = document.getElementById('nextBtn');
-            const hideBtn = document.getElementById('hideBtn');
-            const showBtn = document.getElementById('showBtn');
+            const toggleTransBtn = document.getElementById('toggleTransBtn');
             const shuffleBtn = document.getElementById('shuffleBtn');
 
             // 回车事件（单击验证，双击跳过）
@@ -373,30 +328,27 @@
 
                     if (enterClickCount === 2) {
                         clearTimeout(enterTimeout);
-                        document.getElementById('feedback').textContent = '⏭️ 跳过当前单词';
-                        setTimeout(goToNextWord, 300);
+                        setTimeout(goToNextWord, 150);
                         enterClickCount = 0;
                     }
 
                     if (enterClickCount === 1) {
                         enterTimeout = setTimeout(() => {
                             const inputValue = inputEl.value.trim();
-                            inputValue ? validateInput() : document.getElementById('feedback').textContent = '💡 双击回车可跳过';
+                            if (inputValue) validateInput();
                             enterClickCount = 0;
                         }, 250);
                     }
                 }
             });
 
-            nextBtn.addEventListener('click', goToNextWord);
-
-            hideBtn.addEventListener('click', () => {
-                globalHideTranslations = true;
-                document.querySelectorAll('.translation-item').forEach(el => el.classList.add('hidden'));
-            });
-            showBtn.addEventListener('click', () => {
-                globalHideTranslations = false;
-                document.querySelectorAll('.translation-item').forEach(el => el.classList.remove('hidden'));
+            // 释义显示/隐藏切换（按钮文字随状态切换）
+            toggleTransBtn.addEventListener('click', () => {
+                globalHideTranslations = !globalHideTranslations;
+                toggleTransBtn.textContent = globalHideTranslations ? '显示释义' : '隐藏释义';
+                document.querySelectorAll('.translation-item').forEach(el => {
+                    el.classList.toggle('hidden', globalHideTranslations);
+                });
             });
 
             // 打乱单词（重置虚拟滚动状态）
@@ -415,7 +367,7 @@
                 enableAllControls();
             });
 
-            // 滚动事件：rAF 实时渲染可视卡片 + 防抖更新居中索引
+            // 滚动事件：rAF 实时渲染可视卡片 + 防抖更新顶部单词索引
             leftScrollArea.addEventListener('scroll', () => {
                 if (rafId) cancelAnimationFrame(rafId);
                 rafId = requestAnimationFrame(renderVisibleCards);
@@ -423,14 +375,13 @@
                 if (isAutoScroll) return;
                 clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
-                    const centeredIdx = findCenteredWordIndex();
-                    if (centeredIdx !== currentIndex) {
+                    const topIdx = findCenteredWordIndex();
+                    if (topIdx !== currentIndex) {
                         const oldIdx = currentIndex;
-                        currentIndex = centeredIdx;
+                        currentIndex = topIdx;
                         updateActiveClass(oldIdx, currentIndex);
                         updateProgress();
                         document.getElementById('wordInput').value = '';
-                        document.getElementById('feedback').textContent = '';
                         enterClickCount = 0;
                     }
                 }, 150);
