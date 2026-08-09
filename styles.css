@@ -82,19 +82,32 @@ h1 {
     font-size: 15px;
 }
 .word-list {
-    display: grid;
-    gap: 18px;
+    position: relative;
+    width: 100%;
+}
+.virtual-spacer {
+    width: 100%;
+}
+.virtual-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
 }
 .word-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     background: #f8f9fa;
     border-radius: 8px;
     padding: 20px;
     border-left: 4px solid #4299e1;
-    transition: all 0.3s;
+    transition: background-color 0.3s, box-shadow 0.3s, border-color 0.3s;
+    will-change: transform;
 }
 .word-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
 }
 .word-card.active {
     border-left-color: #48bb78;

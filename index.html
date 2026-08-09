@@ -11,7 +11,7 @@
         <!-- 左侧单词列表区 -->
         <div class="left-section" id="leftScrollArea">
             <h1>📚 单词背诵助手</h1>
-            
+
             <div class="control-bar">
                 <button class="btn" id="hideBtn" disabled>隐藏所有释义</button>
                 <button class="btn" id="showBtn" disabled>显示所有释义</button>
@@ -19,7 +19,7 @@
                 <span class="word-count" id="count">共 <span>0</span> 个单词</span>
             </div>
 
-            <!-- 加载提示容器（初始显示，加载中逐步替换） -->
+            <!-- 虚拟滚动容器（加载后由 JS 注入 spacer + content） -->
             <div class="word-list" id="wordList">
                 <div style="text-align: center; padding: 80px 20px; color: #4299e1; font-size: 20px; line-height: 2;">
                     ⏳ 正在加载单词数据...<br>
@@ -34,13 +34,14 @@
                 <div class="input-title">✍️ 拼写单词</div>
                 <input type="text" class="word-input" id="wordInput" placeholder="加载完成后可输入" disabled>
                 <div class="feedback" id="feedback">📌 等待数据加载中...</div>
-                <div class="progress" id="progress">加载期间判断稍慢：0/0</div> <!-- 实时显示“已加载/总数量” -->
+                <div class="progress" id="progress">进度：0/0</div>
                 <button class="btn" id="nextBtn" disabled>下一个单词</button>
             </div>
         </div>
     </div>
 
     <script>
+        // ============ 全局状态 ============
         let words = [];
         let currentIndex = 0;
         let shuffledWords = [];
@@ -49,13 +50,21 @@
         let scrollTimeout = null;
         let enterClickCount = 0;
         let enterTimeout = null;
-        const correctDelay = 750;
-        let totalWordCount = 0; // 总单词数
-        let loadedWordCount = 0; // 已加载单词数
-        const progressEl = document.getElementById('progress'); // 缓存进度DOM，避免重复查询
-        const BATCH_UPDATE_COUNT = 10; // 每加载10个更新一次（更频繁，视觉上更实时）
+        let rafId = null;
+        let globalHideTranslations = false;
 
-        // 加载JSON文件
+        // ============ 虚拟滚动配置与状态 ============
+        const ESTIMATED_CARD_HEIGHT = 160; // 预估单卡高度（不含间距）
+        const GAP = 18;                    // 卡片间距
+        const BUFFER = 5;                  // 前后缓冲卡片数
+        let cardHeights = [];              // 实际高度缓存
+        let cardTops = [];                 // 每张卡片顶部位置（前缀和）
+        let totalHeight = 0;               // 列表总高度
+        let lastRenderStart = -1;          // 上次渲染范围（去重）
+        let lastRenderEnd = -1;
+        let domReady = false;              // 虚拟滚动结构是否就绪
+
+        // ============ 加载词库 ============
         fetch('Vocabulary.json')
             .then(response => {
                 if (!response.ok) throw new Error('文件访问失败');
@@ -64,23 +73,15 @@
             .then(data => {
                 words = data;
                 shuffledWords = [...words];
-                totalWordCount = words.length; // 统计总单词数
-                const countSpan = document.querySelector('#count span');
-                countSpan.textContent = totalWordCount;
-                
-                // 初始化进度显示（0/总数量）
-                progressEl.textContent = `加载中：0/${totalWordCount}`;
+                document.querySelector('#count span').textContent = words.length;
+                document.getElementById('progress').textContent = `进度：1/${words.length}`;
 
-                // 渲染单词卡片（实时更新加载进度，强制DOM响应）
-                renderWordsWithProgress(shuffledWords);
-                // 激活第一个单词
-                activateCurrentWord();
-                // 绑定事件+启用所有控件
+                initVirtualScroll();
                 bindEvents();
                 enableAllControls();
+                activateCurrentWord();
             })
-            .catch(error => {
-                // 加载失败提示（2条核心检查项）
+            .catch(() => {
                 document.getElementById('wordList').innerHTML = `
                     <div style="text-align: center; padding: 80px 20px; color: #e53e3e; font-size: 18px; line-height: 2.2;">
                         ❌ 单词数据加载失败！<br><br>
@@ -91,94 +92,162 @@
                 `;
                 document.getElementById('feedback').textContent = '❌ 加载失败，请检查上述条件';
                 document.getElementById('feedback').className = 'feedback error';
-                progressEl.textContent = '加载失败';
+                document.getElementById('progress').textContent = '加载失败';
             });
 
-        // 核心：带实时进度的单词渲染（强制DOM即时更新）
-        function renderWordsWithProgress(wordArray) {
+        // ============ 虚拟滚动核心 ============
+
+        // 初始化虚拟滚动结构
+        function initVirtualScroll() {
             const wordList = document.getElementById('wordList');
-            wordList.innerHTML = ''; // 清空初始提示
-            const fragment = document.createDocumentFragment();
-
-            // 分批次渲染，每批渲染BATCH_UPDATE_COUNT个，渲染完一批更新进度+强制DOM刷新
-            const renderBatch = (startIndex) => {
-                const endIndex = Math.min(startIndex + BATCH_UPDATE_COUNT - 1, wordArray.length - 1);
-                
-                for (let i = startIndex; i <= endIndex; i++) {
-                    const wordObj = wordArray[i];
-                    const card = document.createElement('div');
-                    card.className = `word-card ${i === currentIndex ? 'active' : ''}`;
-                    card.dataset.index = i;
-
-                    // 中文意思+紧跟词性
-                    let translationsHtml = '<div class="translations-container">';
-                    wordObj.translations.forEach(trans => {
-                        const meanings = trans.translation.split('；');
-                        meanings.forEach(mean => {
-                            translationsHtml += `
-                                <div class="translation-item">
-                                    <span class="meaning">${mean.trim()}</span>
-                                    <span class="pos-tag">${trans.type}</span>
-                                </div>
-                            `;
-                        });
-                    });
-                    translationsHtml += '</div>';
-
-                    // 常用短语
-                    let phrasesHtml = '';
-                    if (wordObj.phrases && wordObj.phrases.length > 0) {
-                        phrasesHtml = `
-                            <div class="phrases-title">常用短语：</div>
-                            <div class="phrase-list">
-                                ${wordObj.phrases.map(phrase => `
-                                    <div class="phrase-item">
-                                        <span class="phrase-eng">${phrase.phrase}</span>
-                                        <span class="phrase-cn">${phrase.translation}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `;
-                    }
-
-                    card.innerHTML = `
-                        <div class="word-header">
-                            <div class="word">${wordObj.word}</div>
-                        </div>
-                        ${translationsHtml}
-                        ${phrasesHtml}
-                    `;
-
-                    // 释义显示/隐藏事件
-                    const transItems = card.querySelectorAll('.translation-item');
-                    transItems.forEach(el => {
-                        el.addEventListener('click', () => el.classList.toggle('hidden'));
-                    });
-
-                    fragment.appendChild(card);
-                    loadedWordCount++;
-                }
-
-                // 插入当前批次的卡片
-                wordList.appendChild(fragment);
-                // 更新进度，并强制浏览器即时渲染（关键修复）
-                progressEl.textContent = `加载期间判断稍慢：${loadedWordCount}/${totalWordCount}`;
-                progressEl.offsetHeight; // 强制DOM回流，确保进度即时显示
-
-                // 如果还有未渲染的单词，继续渲染下一批
-                if (endIndex < wordArray.length - 1) {
-                    requestAnimationFrame(() => renderBatch(endIndex + 1)); // 用动画帧调度，避免卡顿
-                } else {
-                    // 所有单词渲染完成，切换为背诵进度
-                    progressEl.textContent = `进度：1/${totalWordCount}`;
-                }
-            };
-
-            // 开始分批次渲染
-            renderBatch(0);
+            wordList.innerHTML = `
+                <div class="virtual-spacer" id="virtualSpacer"></div>
+                <div class="virtual-content" id="virtualContent"></div>
+            `;
+            cardHeights = shuffledWords.map(() => ESTIMATED_CARD_HEIGHT);
+            computeTops();
+            domReady = true;
+            renderVisibleCards();
         }
 
-        // 启用所有交互控件（加载完成后）
+        // 计算每张卡片顶部位置（前缀和）与总高度
+        function computeTops() {
+            cardTops = [];
+            let top = 0;
+            for (let i = 0; i < cardHeights.length; i++) {
+                cardTops[i] = top;
+                top += cardHeights[i] + GAP;
+            }
+            totalHeight = cardHeights.length > 0
+                ? cardTops[cardHeights.length - 1] + cardHeights[cardHeights.length - 1] + GAP
+                : 0;
+            const spacer = document.getElementById('virtualSpacer');
+            if (spacer) spacer.style.height = totalHeight + 'px';
+        }
+
+        // 二分查找：position 落在哪张卡片上（返回 top <= position 的最大索引）
+        function findIndexAtPosition(position) {
+            let lo = 0, hi = cardTops.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi + 1) >> 1;
+                if (cardTops[mid] <= position) lo = mid;
+                else hi = mid - 1;
+            }
+            return lo;
+        }
+
+        // 计算当前可视范围（含缓冲区）
+        function computeVisibleRange() {
+            const scrollTop = leftScrollArea.scrollTop;
+            const viewportHeight = leftScrollArea.clientHeight;
+            const startIndex = findIndexAtPosition(scrollTop);
+            const endIndex = findIndexAtPosition(scrollTop + viewportHeight);
+            return {
+                start: Math.max(0, startIndex - BUFFER),
+                end: Math.min(cardTops.length - 1, endIndex + BUFFER)
+            };
+        }
+
+        // 创建单张卡片 DOM
+        function createCard(wordObj, index) {
+            const card = document.createElement('div');
+            card.className = `word-card ${index === currentIndex ? 'active' : ''}`;
+            card.dataset.index = index;
+
+            let translationsHtml = '<div class="translations-container">';
+            wordObj.translations.forEach(trans => {
+                const meanings = trans.translation.split('；');
+                meanings.forEach(mean => {
+                    translationsHtml += `
+                        <div class="translation-item">
+                            <span class="meaning">${mean.trim()}</span>
+                            <span class="pos-tag">${trans.type}</span>
+                        </div>
+                    `;
+                });
+            });
+            translationsHtml += '</div>';
+
+            let phrasesHtml = '';
+            if (wordObj.phrases && wordObj.phrases.length > 0) {
+                phrasesHtml = `
+                    <div class="phrases-title">常用短语：</div>
+                    <div class="phrase-list">
+                        ${wordObj.phrases.map(phrase => `
+                            <div class="phrase-item">
+                                <span class="phrase-eng">${phrase.phrase}</span>
+                                <span class="phrase-cn">${phrase.translation}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="word-header">
+                    <div class="word">${wordObj.word}</div>
+                </div>
+                ${translationsHtml}
+                ${phrasesHtml}
+            `;
+
+            const transItems = card.querySelectorAll('.translation-item');
+            transItems.forEach(el => {
+                if (globalHideTranslations) el.classList.add('hidden');
+                el.addEventListener('click', () => el.classList.toggle('hidden'));
+            });
+
+            return card;
+        }
+
+        // 渲染当前可视范围内的卡片
+        function renderVisibleCards() {
+            if (!domReady) return;
+            const range = computeVisibleRange();
+            if (range.start === lastRenderStart && range.end === lastRenderEnd) return;
+            lastRenderStart = range.start;
+            lastRenderEnd = range.end;
+
+            const content = document.getElementById('virtualContent');
+            content.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+
+            for (let i = range.start; i <= range.end; i++) {
+                const card = createCard(shuffledWords[i], i);
+                card.style.transform = `translateY(${cardTops[i]}px)`;
+                fragment.appendChild(card);
+            }
+            content.appendChild(fragment);
+
+            // 渲染后测量实际高度并修正预估高度
+            requestAnimationFrame(measureAndCorrect);
+        }
+
+        // 测量已渲染卡片的真实高度，修正缓存并重新定位
+        function measureAndCorrect() {
+            const content = document.getElementById('virtualContent');
+            if (!content) return;
+            const cards = content.children;
+            let changed = false;
+            for (let i = 0; i < cards.length; i++) {
+                const idx = parseInt(cards[i].dataset.index, 10);
+                const actualHeight = cards[i].offsetHeight;
+                if (Math.abs(actualHeight - cardHeights[idx]) > 1) {
+                    cardHeights[idx] = actualHeight;
+                    changed = true;
+                }
+            }
+            if (changed) {
+                computeTops();
+                for (let i = 0; i < cards.length; i++) {
+                    const idx = parseInt(cards[i].dataset.index, 10);
+                    cards[i].style.transform = `translateY(${cardTops[idx]}px)`;
+                }
+            }
+        }
+
+        // ============ 交互逻辑 ============
+
         function enableAllControls() {
             document.getElementById('wordInput').disabled = false;
             document.getElementById('nextBtn').disabled = false;
@@ -189,28 +258,54 @@
             document.getElementById('feedback').textContent = '';
         }
 
-        // 激活当前单词
-        function activateCurrentWord() {
-            const cards = document.querySelectorAll('.word-card');
-            if (!cards[currentIndex]) return;
+        function disableAllControls() {
+            document.getElementById('wordInput').disabled = true;
+            document.getElementById('nextBtn').disabled = true;
+            document.getElementById('feedback').textContent = '📌 正在打乱...';
+        }
 
+        // 更新 active class（只操作两个 DOM 节点，不遍历全部）
+        function updateActiveClass(oldIdx, newIdx) {
+            const content = document.getElementById('virtualContent');
+            if (!content) return;
+            if (oldIdx >= 0) {
+                const oldCard = content.querySelector(`[data-index="${oldIdx}"]`);
+                if (oldCard) oldCard.classList.remove('active');
+            }
+            if (newIdx >= 0) {
+                const newCard = content.querySelector(`[data-index="${newIdx}"]`);
+                if (newCard) newCard.classList.add('active');
+            }
+        }
+
+        // 激活当前单词：瞬间定位 + 渲染 + 标记 active
+        function activateCurrentWord(oldIdx = -1) {
+            if (!domReady) return;
             isAutoScroll = true;
-            cards.forEach((card, index) => card.classList.toggle('active', index === currentIndex));
-            cards[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            const top = cardTops[currentIndex] || 0;
+            const cardH = cardHeights[currentIndex] || ESTIMATED_CARD_HEIGHT;
+            const viewport = leftScrollArea.clientHeight;
+            const target = Math.max(0, top - (viewport - cardH) / 2);
+
+            leftScrollArea.scrollTop = target;
+            lastRenderStart = -1;
+            lastRenderEnd = -1;
+            renderVisibleCards();
+            updateActiveClass(oldIdx, currentIndex);
 
             document.getElementById('wordInput').value = '';
             document.getElementById('feedback').textContent = '';
             enterClickCount = 0;
 
-            setTimeout(() => isAutoScroll = false, 500);
+            setTimeout(() => { isAutoScroll = false; }, 100);
         }
 
-        // 更新背诵进度显示
         function updateProgress() {
-            progressEl.textContent = `进度：${currentIndex + 1}/${totalWordCount}`;
+            document.getElementById('progress').textContent = `进度：${currentIndex + 1}/${shuffledWords.length}`;
         }
 
-        // 验证输入
+        // 验证输入（已删除 750ms 延迟，拼写正确立即跳转）
         function validateInput() {
             const inputEl = document.getElementById('wordInput');
             const feedbackEl = document.getElementById('feedback');
@@ -220,7 +315,7 @@
             if (inputValue === currentWord) {
                 feedbackEl.textContent = '✅ 拼写正确！';
                 feedbackEl.className = 'feedback correct';
-                setTimeout(goToNextWord, correctDelay);
+                goToNextWord();
             } else {
                 feedbackEl.textContent = '❌ 拼写错误，再试试！';
                 feedbackEl.className = 'feedback error';
@@ -228,45 +323,41 @@
             }
         }
 
-        // 下一个单词
         function goToNextWord() {
-            if (currentIndex < totalWordCount - 1) {
+            const oldIdx = currentIndex;
+            if (currentIndex < shuffledWords.length - 1) {
                 currentIndex++;
+                activateCurrentWord(oldIdx);
+                updateProgress();
             } else {
                 document.getElementById('feedback').textContent = '🎉 所有单词背诵完成！';
                 document.getElementById('feedback').className = 'feedback correct';
                 setTimeout(() => {
                     currentIndex = 0;
-                    activateCurrentWord();
+                    activateCurrentWord(oldIdx);
                     updateProgress();
-                }, 1500);
-                return;
+                }, 800);
             }
-            activateCurrentWord();
-            updateProgress();
         }
 
-        // 查找居中单词索引
+        // 用计算找居中索引（O(log n)，不再遍历 DOM）
         function findCenteredWordIndex() {
-            const cards = document.querySelectorAll('.word-card');
-            const scrollAreaRect = leftScrollArea.getBoundingClientRect();
-            const centerY = scrollAreaRect.top + scrollAreaRect.height / 2;
-            let closestIndex = currentIndex;
-            let minDistance = Infinity;
-
-            cards.forEach((card, index) => {
-                const cardCenterY = card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2;
-                const distance = Math.abs(cardCenterY - centerY);
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    closestIndex = index;
-                }
-            });
-
-            return closestIndex;
+            const scrollTop = leftScrollArea.scrollTop;
+            const viewportCenter = scrollTop + leftScrollArea.clientHeight / 2;
+            let lo = 0, hi = cardTops.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (cardTops[mid] < viewportCenter) lo = mid + 1;
+                else hi = mid;
+            }
+            const c1 = Math.max(0, lo - 1);
+            const c2 = Math.min(cardTops.length - 1, lo);
+            const center1 = cardTops[c1] + cardHeights[c1] / 2;
+            const center2 = cardTops[c2] + cardHeights[c2] / 2;
+            return Math.abs(center1 - viewportCenter) <= Math.abs(center2 - viewportCenter) ? c1 : c2;
         }
 
-        // 绑定所有事件
+        // ============ 事件绑定 ============
         function bindEvents() {
             const inputEl = document.getElementById('wordInput');
             const nextBtn = document.getElementById('nextBtn');
@@ -274,7 +365,7 @@
             const showBtn = document.getElementById('showBtn');
             const shuffleBtn = document.getElementById('shuffleBtn');
 
-            // 回车事件
+            // 回车事件（单击验证，双击跳过）
             inputEl.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -297,55 +388,53 @@
                 }
             });
 
-            // 按钮事件
             nextBtn.addEventListener('click', goToNextWord);
-            hideBtn.addEventListener('click', () => document.querySelectorAll('.translation-item').forEach(el => el.classList.add('hidden')));
-            showBtn.addEventListener('click', () => document.querySelectorAll('.translation-item').forEach(el => el.classList.remove('hidden')));
 
-            // 打乱单词（重新加载进度）
-            shuffleBtn.addEventListener('click', () => {
-                shuffledWords = [...words].sort(() => Math.random() - 0.5);
-                currentIndex = 0;
-                loadedWordCount = 0; // 重置加载计数
-                document.getElementById('wordList').innerHTML = `
-                    <div style="text-align: center; padding: 80px 20px; color: #4299e1; font-size: 18px;">
-                        ⏳ 正在打乱单词顺序...
-                    </div>
-                `;
-                disableAllControls();
-                progressEl.textContent = `加载中：0/${totalWordCount}`;
-
-                setTimeout(() => {
-                    renderWordsWithProgress(shuffledWords);
-                    activateCurrentWord();
-                    updateProgress();
-                    enableAllControls();
-                }, 300);
+            hideBtn.addEventListener('click', () => {
+                globalHideTranslations = true;
+                document.querySelectorAll('.translation-item').forEach(el => el.classList.add('hidden'));
+            });
+            showBtn.addEventListener('click', () => {
+                globalHideTranslations = false;
+                document.querySelectorAll('.translation-item').forEach(el => el.classList.remove('hidden'));
             });
 
-            // 滚动事件
+            // 打乱单词（重置虚拟滚动状态）
+            shuffleBtn.addEventListener('click', () => {
+                isAutoScroll = true;
+                shuffledWords = [...words].sort(() => Math.random() - 0.5);
+                currentIndex = 0;
+                cardHeights = shuffledWords.map(() => ESTIMATED_CARD_HEIGHT);
+                lastRenderStart = -1;
+                lastRenderEnd = -1;
+                computeTops();
+                disableAllControls();
+
+                activateCurrentWord();
+                updateProgress();
+                enableAllControls();
+            });
+
+            // 滚动事件：rAF 实时渲染可视卡片 + 防抖更新居中索引
             leftScrollArea.addEventListener('scroll', () => {
+                if (rafId) cancelAnimationFrame(rafId);
+                rafId = requestAnimationFrame(renderVisibleCards);
+
                 if (isAutoScroll) return;
                 clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
-                    const centeredIndex = findCenteredWordIndex();
-                    if (centeredIndex !== currentIndex) {
-                        currentIndex = centeredIndex;
-                        document.querySelectorAll('.word-card').forEach((card, index) => card.classList.toggle('active', index === currentIndex));
+                    const centeredIdx = findCenteredWordIndex();
+                    if (centeredIdx !== currentIndex) {
+                        const oldIdx = currentIndex;
+                        currentIndex = centeredIdx;
+                        updateActiveClass(oldIdx, currentIndex);
                         updateProgress();
                         document.getElementById('wordInput').value = '';
                         document.getElementById('feedback').textContent = '';
                         enterClickCount = 0;
                     }
-                }, 300);
+                }, 150);
             });
-        }
-
-        // 临时禁用控件（打乱时用）
-        function disableAllControls() {
-            document.getElementById('wordInput').disabled = true;
-            document.getElementById('nextBtn').disabled = true;
-            document.getElementById('feedback').textContent = '📌 正在打乱...';
         }
     </script>
 </body>
