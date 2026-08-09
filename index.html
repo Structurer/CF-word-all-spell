@@ -46,6 +46,7 @@
         let globalHideTranslations = false;
         let autoScrollEndTimeout = null;
         let isSmoothScrolling = false;
+        let isShuffleMode = false; // true=乱序模式，false=顺序模式
 
         // ============ 虚拟滚动配置与状态 ============
         const ESTIMATED_CARD_HEIGHT = 160; // 预估单卡高度（不含间距）
@@ -66,9 +67,24 @@
             })
             .then(data => {
                 words = data;
-                shuffledWords = [...words];
 
-                // 读取缓存的单词序号（仅当未打乱时有效）
+                // 读取缓存的模式和当前序号
+                const cachedMode = localStorage.getItem('displayMode');
+                isShuffleMode = cachedMode === 'shuffle';
+                if (isShuffleMode) {
+                    // 乱序模式下，需要保证刷新后同一顺序——从缓存恢复乱序结果（若存在且长度匹配），否则重新生成并缓存
+                    const cachedShuffled = JSON.parse(localStorage.getItem('shuffledWordsMap') || 'null');
+                    if (cachedShuffled && Array.isArray(cachedShuffled) && cachedShuffled.length === words.length && cachedShuffled.every(i => typeof i === 'number' && i >= 0 && i < words.length)) {
+                        shuffledWords = cachedShuffled.map(i => words[i]);
+                    } else {
+                        const idxMap = words.map((_, i) => i).sort(() => Math.random() - 0.5);
+                        shuffledWords = idxMap.map(i => words[i]);
+                        localStorage.setItem('shuffledWordsMap', JSON.stringify(idxMap));
+                    }
+                } else {
+                    shuffledWords = [...words];
+                }
+
                 const cachedIdx = parseInt(localStorage.getItem('currentIndex'), 10);
                 if (!isNaN(cachedIdx) && cachedIdx >= 0 && cachedIdx < words.length) {
                     currentIndex = cachedIdx;
@@ -79,6 +95,8 @@
                 initVirtualScroll();
                 bindEvents();
                 enableAllControls();
+                // 更新按钮文字匹配当前模式
+                document.getElementById('shuffleBtn').textContent = isShuffleMode ? '顺序展示' : '随机打乱';
                 activateCurrentWord(-1, false);
             })
             .catch(() => {
@@ -407,24 +425,39 @@
                 });
             });
 
-            // 打乱单词（重置虚拟滚动状态，瞬间回到顶部避免长距离平滑滚动过慢）
+            // 切换展示模式：顺序 ↔ 乱序（保持 currentIndex 不变）
             shuffleBtn.addEventListener('click', () => {
-                shuffledWords = [...words].sort(() => Math.random() - 0.5);
-                currentIndex = 0;
+                const oldIdx = currentIndex;
+                isShuffleMode = !isShuffleMode;
+
+                if (isShuffleMode) {
+                    // 切换到乱序模式：生成新的乱序并缓存
+                    const idxMap = words.map((_, i) => i).sort(() => Math.random() - 0.5);
+                    shuffledWords = idxMap.map(i => words[i]);
+                    localStorage.setItem('shuffledWordsMap', JSON.stringify(idxMap));
+                    shuffleBtn.textContent = '顺序展示';
+                } else {
+                    // 切换到顺序模式：使用原始顺序
+                    shuffledWords = [...words];
+                    localStorage.removeItem('shuffledWordsMap');
+                    shuffleBtn.textContent = '随机打乱';
+                }
+                localStorage.setItem('displayMode', isShuffleMode ? 'shuffle' : 'order');
+
+                // 重置虚拟滚动，但保持 currentIndex
                 cardHeights = shuffledWords.map(() => ESTIMATED_CARD_HEIGHT);
-                lastRenderStart = -1;
-                lastRenderEnd = -1;
                 computeTops();
                 disableAllControls();
 
-                // 瞬间回到顶部
+                // 瞬间定位到 currentIndex
                 isSmoothScrolling = false;
                 isAutoScroll = true;
-                leftScrollArea.scrollTop = 0;
+                const targetTop = cardTops[currentIndex] || 0;
+                leftScrollArea.scrollTop = targetTop;
                 lastRenderStart = -1;
                 lastRenderEnd = -1;
                 renderVisibleCards();
-                updateActiveClass(-1, 0);
+                updateActiveClass(-1, currentIndex);
                 document.getElementById('wordInput').value = '';
                 enterClickCount = 0;
                 clearTimeout(autoScrollEndTimeout);
