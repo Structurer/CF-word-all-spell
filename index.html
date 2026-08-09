@@ -248,6 +248,8 @@
             document.getElementById('toggleTransBtn').disabled = false;
             document.getElementById('shuffleBtn').disabled = false;
             document.getElementById('wordInput').placeholder = '空格确认，Enter/下方向键下一个，上方向键上一个';
+            // 初始化时自动聚焦输入框
+            document.getElementById('wordInput').focus();
         }
 
         function disableAllControls() {
@@ -344,18 +346,39 @@
             const toggleTransBtn = document.getElementById('toggleTransBtn');
             const shuffleBtn = document.getElementById('shuffleBtn');
 
-            // 按键事件：空格确认拼写，Enter/下方向键切换下一个单词，上方向键切换上一个单词
-            inputEl.addEventListener('keydown', (e) => {
-                if (e.key === ' ' || e.code === 'Space') {
+            // 统一按键处理（document 级别，输入框无论是否聚焦都能响应功能键）
+            document.addEventListener('keydown', (e) => {
+                if (inputEl.disabled) return;
+                const isInputFocused = document.activeElement === inputEl;
+
+                // 空格确认拼写（聚焦时取输入框内容验证；未聚焦时不处理，让正常输入）
+                if ((e.key === ' ' || e.code === 'Space') && isInputFocused) {
                     e.preventDefault();
                     const inputValue = inputEl.value.trim();
                     if (inputValue) validateInput();
-                } else if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                    return;
+                }
+
+                // Enter / 下方向键：切换下一个单词
+                if (e.key === 'Enter' || e.key === 'ArrowDown') {
                     e.preventDefault();
+                    // 未聚焦时先聚焦输入框，再切换
+                    if (!isInputFocused) inputEl.focus();
                     goToNextWord();
-                } else if (e.key === 'ArrowUp') {
+                    return;
+                }
+
+                // 上方向键：切换上一个单词
+                if (e.key === 'ArrowUp') {
                     e.preventDefault();
+                    if (!isInputFocused) inputEl.focus();
                     goToPrevWord();
+                    return;
+                }
+
+                // 未聚焦时按下字母/数字键：自动聚焦到输入框（让后续输入进入输入框）
+                if (!isInputFocused && e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+                    inputEl.focus();
                 }
             });
 
