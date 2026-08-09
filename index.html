@@ -389,7 +389,10 @@
             });
 
             card.innerHTML = `
-                <div class="new-word">${wordObj.word}</div>
+                <div class="new-word-row">
+                    <div class="new-word">${wordObj.word}</div>
+                    <button class="new-word-delete" title="删除该生词" aria-label="删除该生词">🗑</button>
+                </div>
                 ${translationsHtml}
             `;
 
@@ -399,7 +402,36 @@
                 el.addEventListener('click', () => el.classList.toggle('hidden'));
             });
 
+            const deleteBtn = card.querySelector('.new-word-delete');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removeFromNewWordsBook(index);
+                });
+            }
+
             return card;
+        }
+
+        // 从生词本删除指定索引的单词（O(n) 重建缓存数组，但 DOM 仅重渲染可视区）
+        function removeFromNewWordsBook(index) {
+            if (index < 0 || index >= newWordsBook.length) return;
+            newWordsBook.splice(index, 1);
+            localStorage.setItem('newWordsBook', JSON.stringify(newWordsBook));
+
+            // 重建虚拟滚动缓存
+            nwCardHeights = newWordsBook.map(() => NW_ESTIMATED_HEIGHT);
+            nwComputeTops();
+            nwLastStart = -1;
+            nwLastEnd = -1;
+            nwRenderVisibleCards();
+
+            // 如果当前滚动位置超出新总高度，回滚到底部
+            if (nwScrollArea && nwScrollArea.scrollTop > nwTotalHeight) {
+                nwScrollArea.scrollTop = Math.max(0, nwTotalHeight - nwScrollArea.clientHeight);
+            }
+
+            updateNewWordsUI();
         }
 
         function nwRenderVisibleCards() {

@@ -79,10 +79,15 @@ h1 {
     flex: 1;
     padding: 12px;
     font-size: 18px;
+    font-weight: bold;
     border: 2px solid #e2e8f0;
     border-radius: 8px;
     outline: none;
     transition: border-color 0.3s;
+}
+.word-input::placeholder {
+    color: #a0aec0;
+    font-weight: normal;
 }
 .word-input:focus {
     border-color: #4299e1;
@@ -173,11 +178,35 @@ h1 {
 .new-word-card:hover {
     background: #fff5e1;
 }
+.new-word-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
 .new-word {
     font-size: 16px;
     font-weight: 600;
     color: #2d3748;
-    margin-bottom: 6px;
+}
+.new-word-delete {
+    background: #fee2e2;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.2s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.new-word-delete:hover {
+    background: #feb2b2;
+    transform: scale(1.1);
 }
 .new-word-translation-item {
     font-size: 13px;
