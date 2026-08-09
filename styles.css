@@ -94,16 +94,21 @@ h1 {
     font-size: 15px;
     white-space: nowrap;
 }
-.word-list {
-    position: relative;
+.word-list-wrapper {
     background: white;
     border-radius: 12px;
     box-shadow: 0 2px 15px rgba(0,0,0,0.08);
-    padding: 24px;
-    overflow-y: auto;
+    overflow: hidden;
     flex: 1;
     min-height: 0;
     min-width: 0;
+}
+.word-list {
+    position: relative;
+    background: white;
+    height: 100%;
+    padding: 24px;
+    overflow-y: auto;
 }
 /* 右侧生词本（窄列） */
 .new-words-list {
