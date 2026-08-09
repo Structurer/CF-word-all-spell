@@ -67,7 +67,14 @@
             .then(data => {
                 words = data;
                 shuffledWords = [...words];
-                document.getElementById('progress').textContent = `进度：1/${words.length}`;
+
+                // 读取缓存的单词序号（仅当未打乱时有效）
+                const cachedIdx = parseInt(localStorage.getItem('currentIndex'), 10);
+                if (!isNaN(cachedIdx) && cachedIdx >= 0 && cachedIdx < words.length) {
+                    currentIndex = cachedIdx;
+                }
+
+                document.getElementById('progress').textContent = `进度：${currentIndex + 1}/${words.length}`;
 
                 initVirtualScroll();
                 bindEvents();
@@ -306,6 +313,8 @@
 
         function updateProgress() {
             document.getElementById('progress').textContent = `进度：${currentIndex + 1}/${shuffledWords.length}`;
+            // 缓存当前单词序号，刷新页面后可恢复
+            localStorage.setItem('currentIndex', currentIndex);
         }
 
         // 验证输入（拼写正确立即跳转，错误选中重输）
