@@ -8,26 +8,38 @@
 </head>
 <body>
     <div class="main-container">
-        <!-- 顶部：标题 + 操作按钮 + 输入框 -->
-        <div class="top-section">
-            <div class="top-bar">
-                <h1>背单词助手</h1>
-                <div class="top-actions">
-                    <button class="btn" id="toggleTransBtn" disabled>隐藏释义</button>
-                    <button class="btn reset" id="shuffleBtn" disabled>随机打乱</button>
+        <!-- 左侧列：上部输入区域 + 下部单词卡片 -->
+        <div class="left-column">
+            <!-- 上部：标题 + 操作按钮 + 输入框 -->
+            <div class="top-section">
+                <div class="top-bar">
+                    <h1>背单词助手</h1>
+                    <div class="top-actions">
+                        <button class="btn" id="toggleTransBtn" disabled>隐藏释义</button>
+                        <button class="btn reset" id="shuffleBtn" disabled>随机打乱</button>
+                    </div>
+                </div>
+                <div class="input-row">
+                    <input type="text" class="word-input" id="wordInput" placeholder="加载完成后可输入" disabled>
+                    <span class="progress" id="progress">进度：0/0</span>
                 </div>
             </div>
-            <div class="input-row">
-                <input type="text" class="word-input" id="wordInput" placeholder="加载完成后可输入" disabled>
-                <span class="progress" id="progress">进度：0/0</span>
+            <!-- 下部：主词库卡片滚动区（独立滚动） -->
+            <div class="word-list" id="wordList">
+                <div style="text-align: center; padding: 80px 20px; color: #4299e1; font-size: 20px; line-height: 2;">
+                    ⏳ 正在加载单词数据...<br>
+                    请稍候，加载完成后自动显示卡片
+                </div>
             </div>
         </div>
-
-        <!-- 卡片滚动区（独立滚动） -->
-        <div class="word-list" id="wordList">
-            <div style="text-align: center; padding: 80px 20px; color: #4299e1; font-size: 20px; line-height: 2;">
-                ⏳ 正在加载单词数据...<br>
-                请稍候，加载完成后自动显示卡片
+        <!-- 右侧列：生词本（顶到页面最顶部，独立滚动，虚拟滚动） -->
+        <div class="new-words-list" id="newWordsList">
+            <div class="new-words-header">
+                <span>📒 生词本</span>
+                <span class="new-words-count" id="newWordsCount">0</span>
+            </div>
+            <div class="new-words-empty" id="newWordsEmpty">
+                按 → 方向键加入生词
             </div>
         </div>
     </div>
@@ -49,16 +61,29 @@
         let isShuffleMode = false; // true=乱序模式，false=顺序模式
         let newWordsBook = []; // 生词本：存储被加入生词的单词对象列表
 
-        // ============ 虚拟滚动配置与状态 ============
-        const ESTIMATED_CARD_HEIGHT = 160; // 预估单卡高度（不含间距）
-        const GAP = 18;                    // 卡片间距
-        const BUFFER = 5;                  // 前后缓冲卡片数
-        let cardHeights = [];              // 实际高度缓存
-        let cardTops = [];                 // 每张卡片顶部位置（前缀和）
-        let totalHeight = 0;               // 列表总高度
-        let lastRenderStart = -1;          // 上次渲染范围（去重）
+        // ============ 虚拟滚动配置与状态（左侧主词库） ============
+        const ESTIMATED_CARD_HEIGHT = 160;
+        const GAP = 18;
+        const BUFFER = 5;
+        let cardHeights = [];
+        let cardTops = [];
+        let totalHeight = 0;
+        let lastRenderStart = -1;
         let lastRenderEnd = -1;
-        let domReady = false;              // 虚拟滚动结构是否就绪
+        let domReady = false;
+
+        // ============ 虚拟滚动配置与状态（右侧生词本） ============
+        const NW_ESTIMATED_HEIGHT = 90;  // 生词卡片预估高度
+        const NW_GAP = 10;
+        const NW_BUFFER = 5;
+        let nwCardHeights = [];
+        let nwCardTops = [];
+        let nwTotalHeight = 0;
+        let nwLastStart = -1;
+        let nwLastEnd = -1;
+        let nwDomReady = false;
+        let nwRafId = null;
+        let nwScrollArea = null;
 
         // ============ 加载词库 ============
         fetch('Vocabulary.json')
@@ -100,6 +125,7 @@
                 document.getElementById('progress').textContent = `进度：${currentIndex + 1}/${words.length}`;
 
                 initVirtualScroll();
+                initNewWordsVirtualScroll();
                 bindEvents();
                 enableAllControls();
                 // 更新按钮文字匹配当前模式
@@ -273,13 +299,169 @@
             }
         }
 
+        // ============ 生词本虚拟滚动 ============
+
+        function initNewWordsVirtualScroll() {
+            const listEl = document.getElementById('newWordsList');
+            // 容器结构：header + 空提示（初始显示） + 滚动容器
+            listEl.innerHTML = `
+                <div class="new-words-header">
+                    <span>📒 生词本</span>
+                    <span class="new-words-count" id="newWordsCount">${newWordsBook.length}</span>
+                </div>
+                <div class="new-words-empty" id="newWordsEmpty" style="${newWordsBook.length > 0 ? 'display:none' : ''}">
+                    按 → 方向键加入生词
+                </div>
+                <div class="new-words-scroll" id="newWordsScroll" style="${newWordsBook.length === 0 ? 'display:none' : ''}">
+                    <div class="virtual-spacer" id="nwSpacer"></div>
+                    <div class="virtual-content" id="nwContent"></div>
+                </div>
+            `;
+            nwScrollArea = document.getElementById('newWordsScroll');
+            nwCardHeights = newWordsBook.map(() => NW_ESTIMATED_HEIGHT);
+            nwComputeTops();
+            nwDomReady = true;
+            nwRenderVisibleCards();
+
+            if (nwScrollArea) {
+                nwScrollArea.addEventListener('scroll', () => {
+                    if (nwRafId) cancelAnimationFrame(nwRafId);
+                    nwRafId = requestAnimationFrame(nwRenderVisibleCards);
+                });
+            }
+        }
+
+        function nwComputeTops() {
+            nwCardTops = [];
+            let top = 0;
+            for (let i = 0; i < nwCardHeights.length; i++) {
+                nwCardTops[i] = top;
+                top += nwCardHeights[i] + NW_GAP;
+            }
+            nwTotalHeight = nwCardHeights.length > 0
+                ? nwCardTops[nwCardHeights.length - 1] + nwCardHeights[nwCardHeights.length - 1] + NW_GAP
+                : 0;
+            const spacer = document.getElementById('nwSpacer');
+            if (spacer) spacer.style.height = nwTotalHeight + 'px';
+        }
+
+        function nwFindIndexAtPosition(position) {
+            if (nwCardTops.length === 0) return 0;
+            let lo = 0, hi = nwCardTops.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi + 1) >> 1;
+                if (nwCardTops[mid] <= position) lo = mid;
+                else hi = mid - 1;
+            }
+            return lo;
+        }
+
+        function nwComputeVisibleRange() {
+            if (!nwScrollArea) return { start: 0, end: 0 };
+            const scrollTop = nwScrollArea.scrollTop;
+            const viewportHeight = nwScrollArea.clientHeight;
+            const startIndex = nwFindIndexAtPosition(scrollTop);
+            const endIndex = nwFindIndexAtPosition(scrollTop + viewportHeight);
+            return {
+                start: Math.max(0, startIndex - NW_BUFFER),
+                end: Math.min(nwCardTops.length - 1, endIndex + NW_BUFFER)
+            };
+        }
+
+        function nwCreateCard(wordObj, index) {
+            const card = document.createElement('div');
+            card.className = 'new-word-card';
+            card.dataset.index = index;
+
+            let translationsHtml = '';
+            wordObj.translations.forEach(trans => {
+                const meanings = trans.translation.split('；');
+                meanings.forEach(mean => {
+                    translationsHtml += `
+                        <div class="new-word-translation-item">
+                            <span class="meaning">${mean.trim()}</span>
+                            <span class="new-word-pos-tag">${trans.type}</span>
+                        </div>
+                    `;
+                });
+            });
+
+            card.innerHTML = `
+                <div class="new-word">${wordObj.word}</div>
+                ${translationsHtml}
+            `;
+
+            const transItems = card.querySelectorAll('.new-word-translation-item');
+            transItems.forEach(el => {
+                if (globalHideTranslations) el.classList.add('hidden');
+                el.addEventListener('click', () => el.classList.toggle('hidden'));
+            });
+
+            return card;
+        }
+
+        function nwRenderVisibleCards() {
+            if (!nwDomReady) return;
+            if (newWordsBook.length === 0) return;
+            const range = nwComputeVisibleRange();
+            if (range.start === nwLastStart && range.end === nwLastEnd) return;
+            nwLastStart = range.start;
+            nwLastEnd = range.end;
+
+            const content = document.getElementById('nwContent');
+            if (!content) return;
+            content.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+
+            for (let i = range.start; i <= range.end; i++) {
+                const card = nwCreateCard(newWordsBook[i], i);
+                card.style.transform = `translateY(${nwCardTops[i]}px)`;
+                fragment.appendChild(card);
+            }
+            content.appendChild(fragment);
+
+            requestAnimationFrame(nwMeasureAndCorrect);
+        }
+
+        function nwMeasureAndCorrect() {
+            const content = document.getElementById('nwContent');
+            if (!content) return;
+            const cards = content.children;
+            let changed = false;
+            for (let i = 0; i < cards.length; i++) {
+                const idx = parseInt(cards[i].dataset.index, 10);
+                const actualHeight = cards[i].offsetHeight;
+                if (Math.abs(actualHeight - nwCardHeights[idx]) > 1) {
+                    nwCardHeights[idx] = actualHeight;
+                    changed = true;
+                }
+            }
+            if (changed) {
+                nwComputeTops();
+                for (let i = 0; i < cards.length; i++) {
+                    const idx = parseInt(cards[i].dataset.index, 10);
+                    cards[i].style.transform = `translateY(${nwCardTops[idx]}px)`;
+                }
+            }
+        }
+
+        // 刷新生词本计数和空提示
+        function updateNewWordsUI() {
+            const countEl = document.getElementById('newWordsCount');
+            const emptyEl = document.getElementById('newWordsEmpty');
+            const scrollEl = document.getElementById('newWordsScroll');
+            if (countEl) countEl.textContent = newWordsBook.length;
+            if (emptyEl) emptyEl.style.display = newWordsBook.length > 0 ? 'none' : '';
+            if (scrollEl) scrollEl.style.display = newWordsBook.length === 0 ? 'none' : '';
+        }
+
         // ============ 交互逻辑 ============
 
         function enableAllControls() {
             document.getElementById('wordInput').disabled = false;
             document.getElementById('toggleTransBtn').disabled = false;
             document.getElementById('shuffleBtn').disabled = false;
-            document.getElementById('wordInput').placeholder = '空格确认，Enter/下方向键下一个，上方向键上一个';
+            document.getElementById('wordInput').placeholder = '空格确认，Enter/↓下一个，↑上一个，→加入生词本';
             // 初始化时自动聚焦输入框
             document.getElementById('wordInput').focus();
         }
@@ -379,13 +561,46 @@
         // 加入生词本（基于单词内容去重，避免重复添加）
         function addToNewWordsBook() {
             const currentWordObj = shuffledWords[currentIndex];
-            if (!currentWordObj) return;
-            // 用 word 字段去重
+            if (!currentWordObj) return false;
             const exists = newWordsBook.some(w => w.word === currentWordObj.word);
-            if (!exists) {
-                newWordsBook.push({ ...currentWordObj });
-                localStorage.setItem('newWordsBook', JSON.stringify(newWordsBook));
+            if (exists) return false;
+
+            newWordsBook.push({ ...currentWordObj });
+            localStorage.setItem('newWordsBook', JSON.stringify(newWordsBook));
+
+            // 更新生词本虚拟滚动状态（仅追加 1 个元素，O(1) 操作，不重建整个列表）
+            if (nwDomReady) {
+                const newIdx = newWordsBook.length - 1;
+                // 预估高度
+                const prevTop = nwCardTops.length > 0
+                    ? nwCardTops[nwCardTops.length - 1] + nwCardHeights[nwCardHeights.length - 1] + NW_GAP
+                    : 0;
+                nwCardHeights.push(NW_ESTIMATED_HEIGHT);
+                nwCardTops.push(prevTop);
+                nwTotalHeight = prevTop + NW_ESTIMATED_HEIGHT + NW_GAP;
+                const spacer = document.getElementById('nwSpacer');
+                if (spacer) spacer.style.height = nwTotalHeight + 'px';
+
+                // 重置渲染范围让新卡片进入可视区
+                nwLastStart = -1;
+                nwLastEnd = -1;
+                nwRenderVisibleCards();
+
+                // 滚动到底部，让最新添加的生词可见
+                if (nwScrollArea) {
+                    nwScrollArea.scrollTop = nwTotalHeight;
+                    nwRenderVisibleCards();
+                    // 真实高度修正后再次精准对齐
+                    requestAnimationFrame(() => {
+                        nwRenderVisibleCards();
+                        if (nwScrollArea) nwScrollArea.scrollTop = nwCardTops[nwCardTops.length - 1] || nwTotalHeight;
+                    });
+                }
+
+                updateNewWordsUI();
             }
+
+            return true;
         }
 
         // 查找滚动窗口顶部对应的单词索引（O(log n)）
@@ -447,7 +662,12 @@
             toggleTransBtn.addEventListener('click', () => {
                 globalHideTranslations = !globalHideTranslations;
                 toggleTransBtn.textContent = globalHideTranslations ? '显示释义' : '隐藏释义';
+                // 左侧主词库释义切换
                 document.querySelectorAll('.translation-item').forEach(el => {
+                    el.classList.toggle('hidden', globalHideTranslations);
+                });
+                // 右侧生词本释义切换
+                document.querySelectorAll('.new-word-translation-item').forEach(el => {
                     el.classList.toggle('hidden', globalHideTranslations);
                 });
             });

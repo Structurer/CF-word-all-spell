@@ -13,11 +13,18 @@ body {
 }
 .main-container {
     display: flex;
-    flex-direction: column;
     gap: 20px;
-    max-width: 1200px;
+    max-width: 1400px;
     width: 100%;
     height: calc(100vh - 40px);
+}
+.left-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    flex: 2;
+    min-width: 0;
+    min-height: 0;
 }
 .top-section {
     background: white;
@@ -89,7 +96,6 @@ h1 {
 }
 .word-list {
     position: relative;
-    width: 100%;
     background: white;
     border-radius: 12px;
     box-shadow: 0 2px 15px rgba(0,0,0,0.08);
@@ -97,6 +103,105 @@ h1 {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
+    min-width: 0;
+}
+/* 右侧生词本（窄列） */
+.new-words-list {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+    padding: 16px;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.new-words-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #2d3748;
+}
+.new-words-count {
+    background: #edf2f7;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    color: #718096;
+    font-weight: normal;
+}
+.new-words-empty {
+    text-align: center;
+    color: #a0aec0;
+    padding: 60px 20px;
+    font-size: 14px;
+    flex: 1;
+}
+.new-words-scroll {
+    position: relative;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+/* 生词卡片（简化版，窄、无短语） */
+.new-word-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #fffaf0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    border-left: 3px solid #f6ad55;
+    transition: background-color 0.2s;
+    will-change: transform;
+}
+.new-word-card:hover {
+    background: #fff5e1;
+}
+.new-word {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 6px;
+}
+.new-word-translation-item {
+    font-size: 13px;
+    color: #4a5568;
+    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.4;
+}
+.new-word-pos-tag {
+    padding: 1px 6px;
+    background: #fef3c7;
+    color: #d69e2e;
+    border-radius: 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.new-word-translation-item .meaning {
+    transition: background 0.2s;
+}
+.new-word-translation-item.hidden .meaning {
+    background: #e2e8f0;
+    color: transparent;
+    user-select: none;
+    border-radius: 3px;
+    padding: 1px 4px;
+    margin: -1px -4px;
 }
 .virtual-spacer {
     width: 100%;
@@ -193,19 +298,30 @@ h1 {
     color: #718096;
     margin-left: 6px;
 }
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
     .main-container {
+        flex-direction: column;
         height: auto;
         min-height: 100vh;
     }
+    .left-column {
+        flex: none;
+    }
     .word-list {
-        max-height: 70vh;
+        max-height: 60vh;
+        flex: none;
+    }
+    .new-words-list {
+        max-height: 40vh;
         flex: none;
     }
 }
 @media (max-width: 600px) {
     .top-section, .word-list {
         padding: 16px;
+    }
+    .new-words-list {
+        padding: 14px;
     }
     .top-bar {
         flex-direction: column;
