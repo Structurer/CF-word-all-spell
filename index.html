@@ -198,6 +198,14 @@
             };
         }
 
+        // 有道词典 API 播放美音发音
+        function speakWord(word) {
+            if (!word) return;
+            const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=2`;
+            const audio = new Audio(url);
+            audio.play().catch(err => console.warn('播放发音失败:', err));
+        }
+
         // 创建单张卡片 DOM
         function createCard(wordObj, index) {
             const card = document.createElement('div');
@@ -250,6 +258,16 @@
                 if (globalHideTranslations) el.classList.add('hidden');
                 el.addEventListener('click', () => el.classList.toggle('hidden'));
             });
+
+            // 点击单词或音标播放美音发音
+            const wordEl = card.querySelector('.word');
+            const phoneticEl = card.querySelector('.phonetic');
+            const speakHandler = (e) => {
+                e.stopPropagation();
+                speakWord(wordObj.word);
+            };
+            if (wordEl) wordEl.addEventListener('click', speakHandler);
+            if (phoneticEl) phoneticEl.addEventListener('click', speakHandler);
 
             return card;
         }
@@ -419,6 +437,16 @@
                     removeFromNewWordsBook(index);
                 });
             }
+
+            // 点击单词或音标播放美音发音
+            const wordEl = card.querySelector('.new-word');
+            const phoneticEl = card.querySelector('.new-word-phonetic');
+            const speakHandler = (e) => {
+                e.stopPropagation();
+                speakWord(wordObj.word);
+            };
+            if (wordEl) wordEl.addEventListener('click', speakHandler);
+            if (phoneticEl) phoneticEl.addEventListener('click', speakHandler);
 
             return card;
         }
